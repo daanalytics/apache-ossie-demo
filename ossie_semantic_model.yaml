@@ -1,0 +1,241 @@
+# =============================================================================
+# Apache Ossie (Incubating) — Semantic Model Example
+# 
+# This file demonstrates the Ossie specification format: a vendor-neutral,
+# YAML-based definition of business metrics, dimensions, and relationships.
+#
+# Any tool — BI platform, query engine, or AI agent — can consume this file
+# and understand the business meaning behind the data.
+#
+# Spec: https://ossie.apache.org
+# =============================================================================
+
+ossie_version: "0.1"
+
+model:
+  name: ecommerce_analytics
+  description: >
+    E-commerce analytics semantic model defining consistent business metrics
+    across all consuming tools. This ensures that "Revenue" means the same
+    thing whether queried from a BI dashboard, an AI agent, or a SQL IDE.
+  owner: data-platform-team
+  tags:
+    - ecommerce
+    - analytics
+    - revenue
+
+# ---------------------------------------------------------------------------
+# DATA SOURCES — Physical tables that back this semantic model
+# ---------------------------------------------------------------------------
+sources:
+  - name: orders
+    description: Completed and in-progress customer orders
+    database: OSSIE_DEMO
+    schema: ECOMMERCE
+    table: ORDERS
+    primary_key: order_id
+    
+  - name: customers
+    description: Registered customers with segmentation data
+    database: OSSIE_DEMO
+    schema: ECOMMERCE
+    table: CUSTOMERS
+    primary_key: customer_id
+
+  - name: products
+    description: Product catalog with pricing
+    database: OSSIE_DEMO
+    schema: ECOMMERCE
+    table: PRODUCTS
+    primary_key: product_id
+
+  - name: order_items
+    description: Line items within each order
+    database: OSSIE_DEMO
+    schema: ECOMMERCE
+    table: ORDER_ITEMS
+    primary_key: order_item_id
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS — How sources connect (join paths)
+# ---------------------------------------------------------------------------
+relationships:
+  - name: order_to_customer
+    description: Each order belongs to one customer
+    left_source: orders
+    right_source: customers
+    join_type: many_to_one
+    condition: "orders.customer_id = customers.customer_id"
+
+  - name: order_item_to_order
+    description: Each line item belongs to one order
+    left_source: order_items
+    right_source: orders
+    join_type: many_to_one
+    condition: "order_items.order_id = orders.order_id"
+
+  - name: order_item_to_product
+    description: Each line item references one product
+    left_source: order_items
+    right_source: products
+    join_type: many_to_one
+    condition: "order_items.product_id = products.product_id"
+
+# ---------------------------------------------------------------------------
+# DIMENSIONS — Attributes used to slice and filter metrics
+# ---------------------------------------------------------------------------
+dimensions:
+  - name: order_date
+    description: Date the order was placed
+    source: orders
+    expression: order_date
+    type: date
+    
+  - name: order_month
+    description: Month the order was placed (truncated)
+    source: orders
+    expression: "DATE_TRUNC('month', order_date)"
+    type: date
+
+  - name: order_status
+    description: Current fulfillment status of the order
+    source: orders
+    expression: order_status
+    type: string
+    allowed_values: [completed, shipped, processing, cancelled]
+
+  - name: region
+    description: Geographic region of the customer
+    source: customers
+    expression: region
+    type: string
+
+  - name: country
+    description: Country of the customer
+    source: customers
+    expression: country
+    type: string
+
+  - name: customer_segment
+    description: Business segment (Enterprise, Mid-Market, SMB)
+    source: customers
+    expression: customer_segment
+    type: string
+    allowed_values: [Enterprise, Mid-Market, SMB]
+
+  - name: product_category
+    description: Top-level product category
+    source: products
+    expression: category
+    type: string
+
+  - name: product_subcategory
+    description: Detailed product subcategory
+    source: products
+    expression: subcategory
+    type: string
+
+# ---------------------------------------------------------------------------
+# METRICS — Business measures with unambiguous definitions
+# ---------------------------------------------------------------------------
+metrics:
+  - name: total_revenue
+    description: >
+      Total revenue from completed orders, calculated as the sum of order
+      totals after discounts. This is the single source of truth for revenue
+      across all BI tools and AI agents.
+    expression: "SUM(orders.total_amount)"
+    type: aggregate
+    agg_function: sum
+    source: orders
+    filters:
+      - "orders.order_status = 'completed'"
+    tags:
+      - finance
+      - kpi
+
+  - name: gross_revenue
+    description: >
+      Total order value before any discounts are applied.
+    expression: "SUM(orders.total_amount + orders.discount_amount)"
+    type: aggregate
+    agg_function: sum
+    source: orders
+    filters:
+      - "orders.order_status = 'completed'"
+
+  - name: total_discount
+    description: Total discounts given across all completed orders
+    expression: "SUM(orders.discount_amount)"
+    type: aggregate
+    agg_function: sum
+    source: orders
+    filters:
+      - "orders.order_status = 'completed'"
+
+  - name: order_count
+    description: Number of completed orders
+    expression: "COUNT(DISTINCT orders.order_id)"
+    type: aggregate
+    agg_function: count_distinct
+    source: orders
+    filters:
+      - "orders.order_status = 'completed'"
+    tags:
+      - operations
+
+  - name: average_order_value
+    description: >
+      Average revenue per completed order (total_revenue / order_count).
+      A key efficiency metric for the sales team.
+    expression: "SUM(orders.total_amount) / NULLIF(COUNT(DISTINCT orders.order_id), 0)"
+    type: derived
+    depends_on:
+      - total_revenue
+      - order_count
+    tags:
+      - finance
+      - kpi
+
+  - name: active_customers
+    description: >
+      Count of unique customers who placed at least one order in the period.
+      Used to track customer engagement and retention.
+    expression: "COUNT(DISTINCT orders.customer_id)"
+    type: aggregate
+    agg_function: count_distinct
+    source: orders
+    filters:
+      - "orders.order_status IN ('completed', 'shipped', 'processing')"
+    tags:
+      - customer
+      - kpi
+
+  - name: revenue_per_customer
+    description: Average revenue generated per active customer
+    expression: "SUM(orders.total_amount) / NULLIF(COUNT(DISTINCT orders.customer_id), 0)"
+    type: derived
+    depends_on:
+      - total_revenue
+      - active_customers
+
+  - name: items_sold
+    description: Total quantity of items sold across all completed orders
+    expression: "SUM(order_items.quantity)"
+    type: aggregate
+    agg_function: sum
+    source: order_items
+    tags:
+      - operations
+
+  - name: gross_margin
+    description: >
+      Gross profit margin: (revenue - cost) / revenue. Expressed as a ratio.
+    expression: >
+      (SUM(order_items.line_total) - SUM(products.cost_price * order_items.quantity))
+      / NULLIF(SUM(order_items.line_total), 0)
+    type: derived
+    depends_on:
+      - total_revenue
+    tags:
+      - finance
