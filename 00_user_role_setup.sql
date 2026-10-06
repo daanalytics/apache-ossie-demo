@@ -59,20 +59,11 @@ GRANT SELECT ON FUTURE SEMANTIC VIEWS IN SCHEMA OSSIE_DEMO.ECOMMERCE TO ROLE OSS
 -- Stages (for Streamlit file access)
 GRANT READ ON ALL STAGES IN SCHEMA OSSIE_DEMO.ECOMMERCE TO ROLE OSSIE_DEMO_ROLE;
 
--- =========================================================================
--- 5. STREAMLIT GRANTS
--- =========================================================================
--- GRANT USAGE ON STREAMLIT OSSIE_DEMO.ECOMMERCE.OSSIE_DEMO_APP TO ROLE OSSIE_DEMO_ROLE;
+-- Streamlit and Agent grants: see 05_app_agent_grants.sql
+-- (run after those objects have been created)
 
 -- =========================================================================
--- 6. CORTEX AGENT GRANTS (if agents are created later)
--- =========================================================================
--- Cortex Analyst needs access to the semantic view (already granted above).
--- If a Cortex Agent object is created, uncomment and adjust:
--- GRANT USAGE ON CORTEX AGENT OSSIE_DEMO.ECOMMERCE.<AGENT_NAME> TO ROLE OSSIE_DEMO_ROLE;
-
--- =========================================================================
--- 7. USER
+-- 5. USER
 -- =========================================================================
 CREATE USER IF NOT EXISTS AWS_USW_DAANALYTICS_BLOG_OSSIE_DEMO
   PASSWORD = 'OssieDemo2026!'
@@ -85,7 +76,7 @@ CREATE USER IF NOT EXISTS AWS_USW_DAANALYTICS_BLOG_OSSIE_DEMO
 GRANT ROLE OSSIE_DEMO_ROLE TO USER AWS_USW_DAANALYTICS_BLOG_OSSIE_DEMO;
 
 -- =========================================================================
--- 8. VERIFY
+-- 6. VERIFY
 -- =========================================================================
 SHOW GRANTS TO ROLE OSSIE_DEMO_ROLE;
 SHOW GRANTS TO USER AWS_USW_DAANALYTICS_BLOG_OSSIE_DEMO;
