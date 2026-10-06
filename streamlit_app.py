@@ -283,7 +283,8 @@ with tab3:
         {"Ossie Concept": "primary_key", "Snowflake Equivalent": "PRIMARY_KEY = (col)", "Purpose": "Entity identity"},
         {"Ossie Concept": "join_type: many_to_one", "Snowflake Equivalent": "RELATIONSHIP_TYPE = 'many_to_one'", "Purpose": "Cardinality specification"},
     ]
-    st.dataframe(mapping_data, use_container_width=True, hide_index=True)
+    import pandas as pd
+    st.dataframe(pd.DataFrame(mapping_data), use_container_width=True)
     
     st.divider()
     st.subheader("Side-by-Side: Ossie YAML vs Snowflake SQL")
@@ -447,29 +448,29 @@ with tab4:
             with col_chart:
                 st.bar_chart(df, x="REGION", y="TOTAL_REVENUE")
             with col_table:
-                st.dataframe(df, hide_index=True)
+                st.dataframe(df)
                 
         elif query_choice == "Average Order Value by Segment":
             col_chart, col_table = st.columns([2, 1])
             with col_chart:
                 st.bar_chart(df, x="CUSTOMER_SEGMENT", y="AVERAGE_ORDER_VALUE")
             with col_table:
-                st.dataframe(df, hide_index=True)
+                st.dataframe(df)
                 
         elif query_choice == "Active Customers Over Time":
             st.line_chart(df, x="ORDER_MONTH", y=["ACTIVE_CUSTOMERS"])
-            st.dataframe(df, hide_index=True)
+            st.dataframe(df)
             
         elif query_choice == "Revenue by Product Category":
             col_chart, col_table = st.columns([2, 1])
             with col_chart:
                 st.bar_chart(df, x="PRODUCT_CATEGORY", y="REVENUE")
             with col_table:
-                st.dataframe(df, hide_index=True)
+                st.dataframe(df)
                 
         elif query_choice == "Monthly Revenue Trend":
             st.line_chart(df, x="ORDER_MONTH", y=["TOTAL_REVENUE", "TOTAL_DISCOUNT"])
-            st.dataframe(df, hide_index=True)
+            st.dataframe(df)
             
     except Exception as e:
         st.warning(f"Run `01_setup.sql` first to create the sample data. Error: {e}")
