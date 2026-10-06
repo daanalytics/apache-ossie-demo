@@ -45,48 +45,6 @@ The Streamlit app has 5 tabs:
 
 ---
 
-## LinkedIn Post Talking Points
-
-### Hook
-> The data industry just got a shared language for metrics. Apache Ossie (Incubating) — formerly Open Semantic Interchange — defines a vendor-neutral YAML format so that "Revenue" means the same thing whether it's queried by a BI tool, an AI agent, or a SQL IDE.
-
-### Key Messages
-
-1. **The Problem**: Same metric, N definitions across N tools. AI agents make this worse — they hallucinate metrics when definitions are ambiguous.
-
-2. **Ossie's Solution**: A single YAML file defines your metrics, dimensions, and relationships. Any tool can consume it. Human-readable AND machine-readable.
-
-3. **Snowflake's Implementation**: Snowflake Semantic Views are a native implementation that aligns directly with Ossie's concepts. The mapping is nearly 1:1 (sources → DEFINE TABLE, relationships → DEFINE RELATIONSHIP, metrics → METRIC expressions).
-
-4. **ASF Governance**: No single vendor controls this. 50+ organizations contributing. Governed by the same foundation behind Spark, Kafka, and Iceberg.
-
-5. **AI Angle**: AI agents need reliable semantic context. Ossie makes metric definitions portable — your agent gets the same answer regardless of which platform executes the query.
-
-6. **Converters Already Exist**: Ossie → dbt MetricFlow, Ossie → Snowflake Semantic Model, Apache Polaris → Ossie. Define once, deploy everywhere.
-
-### Call to Action
-> Check out the interactive demo I built showing the Ossie ↔ Snowflake mapping in action. Link in comments.
-> 
-> Join the community: ossie.apache.org | Slack: apache-ossie.slack.com
-
-### Hashtags
-`#ApacheOssie #Snowflake #SemanticLayer #DataEngineering #AI #OpenSource`
-
----
-
-## Blog Post Structure (if expanding)
-
-1. **The Metric Consistency Problem** — Why the same KPI means different things across your stack
-2. **Enter Apache Ossie** — What it is, brief history (OSI → Ossie), why ASF
-3. **The YAML Format** — Walkthrough of a real model (use the e-commerce example)
-4. **Snowflake's Native Alignment** — How Semantic Views implement the same concepts
-5. **The Converter Ecosystem** — Define once, deploy to dbt, Snowflake, Polaris
-6. **Why AI Makes This Urgent** — Agents need semantic grounding, not guesswork
-7. **Try It Yourself** — Link to GitHub repo with the demo code
-8. **Get Involved** — ASF community resources
-
----
-
 ## Resources
 
 - [Snowflake Blog: Apache Ossie Announcement](https://www.snowflake.com/en/blog/apache-ossie-open-semantic-interchange-incubator/)
