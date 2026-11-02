@@ -3,7 +3,11 @@
   
   Creates a sample e-commerce dataset to demonstrate how Apache Ossie's
   vendor-neutral semantic specification maps to Snowflake Semantic Views.
+
+   Run as ACCOUNTADMIN
 =============================================================================*/
+
+USE ROLE ACCOUNTADMIN;
 
 -- 1. Database & Schema
 CREATE DATABASE IF NOT EXISTS OSSIE_DEMO;

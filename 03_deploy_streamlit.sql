@@ -5,7 +5,11 @@
     1. Run 01_setup.sql to create the database, schema, and sample data
     2. Run 02_semantic_view.sql to create the semantic view
     3. Upload streamlit_app.py to a stage (or use CREATE STREAMLIT ... FROM)
+    
+   Run as ACCOUNTADMIN
 =============================================================================*/
+
+USE ROLE ACCOUNTADMIN;
 
 USE DATABASE OSSIE_DEMO;
 USE SCHEMA ECOMMERCE;
