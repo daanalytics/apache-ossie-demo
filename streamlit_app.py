@@ -253,7 +253,7 @@ model:
     st.code(yaml_map[section], language="yaml")
     
     if section == "Sources":
-        st.info("**Sources** define the physical tables backing the model — including database, schema, and primary keys. Equivalent to Snowflake Semantic View `DEFINE TABLE` statements.")
+        st.info("**Sources** name the physical tables behind the model, including database, schema, and primary key. In a Snowflake semantic view that is a logical table in the `TABLES` clause: an alias, a base table, and a `PRIMARY KEY`.")
     elif section == "Relationships":
         st.info("**Relationships** specify join paths between sources, including cardinality. These ensure any consumer can navigate the model correctly — no more accidental fan-out joins.")
     elif section == "Dimensions":
@@ -275,13 +275,14 @@ with tab3:
     st.subheader("Concept Mapping")
     
     mapping_data = [
-        {"Ossie Concept": "sources", "Snowflake Equivalent": "DEFINE TABLE ... BASE_TABLE", "Purpose": "Physical table references"},
-        {"Ossie Concept": "relationships", "Snowflake Equivalent": "DEFINE RELATIONSHIP ... REFERENCES", "Purpose": "Join paths between tables"},
-        {"Ossie Concept": "dimensions", "Snowflake Equivalent": "DIMENSION column_name", "Purpose": "Filterable/groupable attributes"},
-        {"Ossie Concept": "metrics", "Snowflake Equivalent": "METRIC metric_name EXPRESSION = ...", "Purpose": "Aggregated business measures"},
+        {"Ossie Concept": "sources", "Snowflake Equivalent": "TABLES (alias AS base_table)", "Purpose": "Physical table references"},
+        {"Ossie Concept": "relationships", "Snowflake Equivalent": "RELATIONSHIPS (... REFERENCES ...)", "Purpose": "Join paths between tables"},
+        {"Ossie Concept": "dimensions", "Snowflake Equivalent": "DIMENSIONS (table.dimension AS expr)", "Purpose": "Filterable and groupable attributes"},
+        {"Ossie Concept": "metrics", "Snowflake Equivalent": "METRICS (table.metric AS aggregate)", "Purpose": "Aggregated business measures"},
         {"Ossie Concept": "description", "Snowflake Equivalent": "COMMENT = '...'", "Purpose": "Business context and documentation"},
-        {"Ossie Concept": "primary_key", "Snowflake Equivalent": "PRIMARY_KEY = (col)", "Purpose": "Entity identity"},
-        {"Ossie Concept": "join_type: many_to_one", "Snowflake Equivalent": "RELATIONSHIP_TYPE = 'many_to_one'", "Purpose": "Cardinality specification"},
+        {"Ossie Concept": "primary_key", "Snowflake Equivalent": "PRIMARY KEY (col)", "Purpose": "Entity identity"},
+        {"Ossie Concept": "join_type: many_to_one", "Snowflake Equivalent": "Inferred from PRIMARY KEY", "Purpose": "Cardinality of the relationship"},
+        {"Ossie Concept": "filters", "Snowflake Equivalent": "Predicate inside the metric expression", "Purpose": "The business rule travels with the metric"},
     ]
     import pandas as pd
     st.dataframe(pd.DataFrame(mapping_data), use_container_width=True)
@@ -307,15 +308,17 @@ with tab3:
     
     with col_sf:
         st.markdown("#### Snowflake Semantic View")
-        st.code('''DEFINE TABLE orders_t
-  BASE_TABLE = 'OSSIE_DEMO.ECOMMERCE.ORDERS'
-  
-  METRIC total_revenue
-    EXPRESSION = SUM(total_amount)
-    COMMENT = 'Total revenue from completed 
-    orders. Single source of truth for 
-    all tools.'
-    ''', language="sql")
+        st.code('''METRICS (
+  orders.total_revenue AS SUM(
+    IFF(
+      orders.order_status = 'completed',
+      orders.total_amount,
+      NULL
+    )
+  )
+  COMMENT = 'Sum of total_amount for
+    completed orders.'
+)''', language="sql")
     
     st.divider()
     
@@ -333,12 +336,12 @@ with tab3:
     
     with col_sf2:
         st.markdown("#### Snowflake Semantic View")
-        st.code('''DEFINE RELATIONSHIP order_to_customer
-  orders_t(customer_id) 
-    REFERENCES customers_t(customer_id)
-  RELATIONSHIP_TYPE = 'many_to_one'
-  COMMENT = 'Each order belongs to 
-  one customer\'''', language="sql")
+        st.code('''RELATIONSHIPS (
+  order_to_customer AS
+    orders (customer_id)
+      REFERENCES customers (customer_id)
+)''', language="sql")
+        st.caption("Many orders belong to one customer because `customer_id` is the primary key of `customers`. Snowflake infers that cardinality from the key.")
     
     st.divider()
     st.subheader("Reference Implementations (Converters)")
@@ -361,11 +364,10 @@ with tab3:
 with tab4:
     st.header("Live Query Demo")
     st.markdown("""
-    These queries demonstrate how the semantic model provides **consistent metric definitions** 
-    that any tool or AI agent can rely on. The metrics below match exactly what's defined 
-    in both the Ossie YAML and the Snowflake Semantic View.
+    Each query asks the semantic view for a **metric by name**. The expression, the
+    status rule, and the join path stay in the view. The SQL no longer restates them.
     """)
-    
+
     query_choice = st.selectbox(
         "Select a metric to explore:",
         [
@@ -376,115 +378,125 @@ with tab4:
             "Monthly Revenue Trend",
         ]
     )
-    
+
+    semantic_view = "OSSIE_DEMO.ECOMMERCE.ecommerce_semantic_model"
     queries = {
-        "Total Revenue by Region": """
-            SELECT c.region, 
-                   SUM(o.total_amount) AS total_revenue,
-                   COUNT(DISTINCT o.order_id) AS order_count
-            FROM OSSIE_DEMO.ECOMMERCE.orders o
-            JOIN OSSIE_DEMO.ECOMMERCE.customers c 
-              ON o.customer_id = c.customer_id
-            WHERE o.order_status = 'completed'
-            GROUP BY c.region
+        "Total Revenue by Region": f"""
+            SELECT *
+            FROM SEMANTIC_VIEW(
+                {semantic_view}
+                DIMENSIONS customers.region
+                METRICS orders.total_revenue,
+                        orders.order_count
+            )
             ORDER BY total_revenue DESC
         """,
-        "Average Order Value by Segment": """
-            SELECT c.customer_segment,
-                   SUM(o.total_amount) / NULLIF(COUNT(DISTINCT o.order_id), 0) AS average_order_value,
-                   COUNT(DISTINCT o.order_id) AS order_count,
-                   COUNT(DISTINCT o.customer_id) AS active_customers
-            FROM OSSIE_DEMO.ECOMMERCE.orders o
-            JOIN OSSIE_DEMO.ECOMMERCE.customers c 
-              ON o.customer_id = c.customer_id
-            WHERE o.order_status = 'completed'
-            GROUP BY c.customer_segment
+        "Average Order Value by Segment": f"""
+            SELECT *
+            FROM SEMANTIC_VIEW(
+                {semantic_view}
+                DIMENSIONS customers.customer_segment
+                METRICS orders.average_order_value,
+                        orders.order_count,
+                        orders.active_customers
+            )
             ORDER BY average_order_value DESC
         """,
-        "Active Customers Over Time": """
-            SELECT DATE_TRUNC('month', o.order_date) AS order_month,
-                   COUNT(DISTINCT o.customer_id) AS active_customers,
-                   SUM(o.total_amount) AS total_revenue
-            FROM OSSIE_DEMO.ECOMMERCE.orders o
-            WHERE o.order_status IN ('completed', 'shipped', 'processing')
-            GROUP BY order_month
+        "Active Customers Over Time": f"""
+            SELECT *
+            FROM SEMANTIC_VIEW(
+                {semantic_view}
+                DIMENSIONS orders.order_month
+                METRICS orders.active_customers,
+                        orders.total_revenue
+            )
             ORDER BY order_month
         """,
-        "Revenue by Product Category": """
-            SELECT p.category AS product_category,
-                   SUM(oi.line_total) AS revenue,
-                   SUM(oi.quantity) AS items_sold,
-                   SUM(oi.line_total) / NULLIF(SUM(oi.quantity), 0) AS avg_item_price
-            FROM OSSIE_DEMO.ECOMMERCE.order_items oi
-            JOIN OSSIE_DEMO.ECOMMERCE.products p 
-              ON oi.product_id = p.product_id
-            JOIN OSSIE_DEMO.ECOMMERCE.orders o 
-              ON oi.order_id = o.order_id
-            WHERE o.order_status = 'completed'
-            GROUP BY p.category
-            ORDER BY revenue DESC
+        "Revenue by Product Category": f"""
+            SELECT *
+            FROM SEMANTIC_VIEW(
+                {semantic_view}
+                DIMENSIONS products.product_category
+                METRICS order_items.line_revenue,
+                        order_items.items_sold
+            )
+            ORDER BY line_revenue DESC
         """,
-        "Monthly Revenue Trend": """
-            SELECT DATE_TRUNC('month', o.order_date) AS order_month,
-                   SUM(o.total_amount) AS total_revenue,
-                   SUM(o.discount_amount) AS total_discount,
-                   SUM(o.total_amount) / NULLIF(COUNT(DISTINCT o.order_id), 0) AS aov
-            FROM OSSIE_DEMO.ECOMMERCE.orders o
-            WHERE o.order_status = 'completed'
-            GROUP BY order_month
+        "Monthly Revenue Trend": f"""
+            SELECT *
+            FROM SEMANTIC_VIEW(
+                {semantic_view}
+                DIMENSIONS orders.order_month
+                METRICS orders.total_revenue,
+                        orders.total_discount,
+                        orders.average_order_value
+            )
             ORDER BY order_month
         """,
     }
-    
-    with st.expander("View SQL (derived from semantic model definition)", expanded=False):
-        st.code(queries[query_choice], language="sql")
-        st.caption("This query implements the metric exactly as defined in the Ossie YAML — same filters, same aggregation logic.")
-    
+    query_notes = {
+        "Total Revenue by Region": "total_revenue and order_count already keep completed orders only. This query names the metrics and the region dimension.",
+        "Average Order Value by Segment": "average_order_value is completed revenue divided by the completed order count. active_customers uses a wider status list, so the two numbers answer different questions.",
+        "Active Customers Over Time": "active_customers includes completed, shipped, and processing orders. total_revenue on the same chart stays limited to completed orders.",
+        "Revenue by Product Category": "Category lives on products, so this cut uses line_revenue and items_sold. The Ossie model gives those metrics no status filter. Order-level revenue is a different metric, with its own rule.",
+        "Monthly Revenue Trend": "total_revenue, total_discount, and average_order_value all inherit the completed-order rule from their expressions.",
+    }
+
+    with st.expander("View SQL (asks the semantic view for the metric)", expanded=False):
+        st.code(queries[query_choice].strip(), language="sql")
+        st.caption(query_notes[query_choice])
+
     try:
         df = session.sql(queries[query_choice]).to_pandas()
-        
+        df.columns = [column.upper() for column in df.columns]
+
         if query_choice == "Total Revenue by Region":
             col_chart, col_table = st.columns([2, 1])
             with col_chart:
                 st.bar_chart(df, x="REGION", y="TOTAL_REVENUE")
             with col_table:
                 st.dataframe(df)
-                
+
         elif query_choice == "Average Order Value by Segment":
             col_chart, col_table = st.columns([2, 1])
             with col_chart:
                 st.bar_chart(df, x="CUSTOMER_SEGMENT", y="AVERAGE_ORDER_VALUE")
             with col_table:
                 st.dataframe(df)
-                
+
         elif query_choice == "Active Customers Over Time":
             st.line_chart(df, x="ORDER_MONTH", y=["ACTIVE_CUSTOMERS"])
             st.dataframe(df)
-            
+
         elif query_choice == "Revenue by Product Category":
             col_chart, col_table = st.columns([2, 1])
             with col_chart:
-                st.bar_chart(df, x="PRODUCT_CATEGORY", y="REVENUE")
+                st.bar_chart(df, x="PRODUCT_CATEGORY", y="LINE_REVENUE")
             with col_table:
                 st.dataframe(df)
-                
+
         elif query_choice == "Monthly Revenue Trend":
             st.line_chart(df, x="ORDER_MONTH", y=["TOTAL_REVENUE", "TOTAL_DISCOUNT"])
             st.dataframe(df)
-            
+
     except Exception as e:
-        st.warning(f"Run `01_setup.sql` first to create the sample data. Error: {e}")
-    
+        st.warning(
+            "Run `01_setup.sql` and `02_semantic_view.sql` first so the semantic view exists. "
+            f"Error: {e}"
+        )
+
     st.divider()
     st.subheader("Why This Matters")
     st.markdown("""
-    Every query above implements a metric **exactly as defined** in the Ossie YAML:
-    - `total_revenue` → `SUM(total_amount)` with filter `order_status = 'completed'`  
-    - `average_order_value` → `SUM(total_amount) / NULLIF(COUNT(DISTINCT order_id), 0)`  
-    - `active_customers` → `COUNT(DISTINCT customer_id)`  
-    
-    Whether this query comes from a BI dashboard, an AI agent, or a SQL IDE — the 
-    result is **identical** because the definition lives in one place.
+    The query names the metric. The semantic view supplies the meaning:
+
+    - `total_revenue` sums `total_amount` where `order_status = 'completed'`
+    - `gross_revenue` adds `discount_amount` back, on the same completed orders
+    - `average_order_value` is `total_revenue / order_count`, so it keeps that completed-order rule
+    - `active_customers` counts customers with a completed, shipped, or processing order
+    - `line_revenue` and `items_sold` stay on line items, with no status filter, because that is how the model defines them
+
+    A dashboard, a SQL worksheet, and an AI agent that ask for these names get the same contract.
     """)
 
 # =============================================================================

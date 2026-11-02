@@ -11,7 +11,7 @@ Run `01_setup.sql` in Snowsight or SnowSQL to create:
 - Tables: `customers`, `products`, `orders`, `order_items`
 
 ### 2. Create the Semantic View
-Run `02_semantic_view.sql` to create a Snowflake Semantic View that mirrors the Ossie YAML model.
+Run `02_semantic_view.sql` to create a Snowflake semantic view from the Ossie model. Status rules such as "completed orders only" are part of the metric expressions. The live queries read this view with `SEMANTIC_VIEW()`, so they name a metric instead of restating the formula.
 
 ### 3. Deploy the Streamlit app
 Upload `streamlit_app.py` to a Snowflake stage and run `03_deploy_streamlit.sql`.
@@ -28,7 +28,7 @@ Then execute the CREATE STREAMLIT statement in `03_deploy_streamlit.sql`.
 | File | Purpose |
 |------|---------|
 | `01_setup.sql` | Database, tables, and sample data |
-| `02_semantic_view.sql` | Snowflake Semantic View (mirrors Ossie spec) |
+| `02_semantic_view.sql` | Snowflake semantic view; Ossie filters live in the metric expressions |
 | `03_deploy_streamlit.sql` | Deploy as Streamlit in Snowflake |
 | `ossie_semantic_model.yaml` | Example Ossie-format semantic model |
 | `streamlit_app.py` | Interactive demo application |
@@ -40,7 +40,7 @@ The Streamlit app has 5 tabs:
 1. **What is Ossie?** — The problem of metric inconsistency and how Ossie solves it
 2. **Ossie YAML Spec** — Annotated walkthrough of the YAML format (sources, relationships, dimensions, metrics)
 3. **Ossie → Snowflake Mapping** — Side-by-side comparison showing the 1:1 concept mapping
-4. **Live Query Demo** — Interactive queries implementing the semantically-defined metrics
+4. **Live Query Demo** — Queries that ask the semantic view for a metric by name
 5. **The Vision** — Interoperability diagram, ASF governance, roadmap, and community links
 
 ---
