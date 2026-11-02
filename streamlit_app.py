@@ -28,7 +28,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "What is Ossie?",
     "Ossie YAML Spec",
     "Ossie → Snowflake Mapping",
-    "Live Query Demo",
+    "With vs Without",
     "The Vision",
 ])
 
@@ -359,145 +359,356 @@ with tab3:
     """)
 
 # =============================================================================
-# TAB 4: LIVE QUERY DEMO
+# TAB 4: WITH VS WITHOUT A SEMANTIC VIEW
 # =============================================================================
 with tab4:
-    st.header("Live Query Demo")
-    st.markdown("""
-    Each query asks the semantic view for a **metric by name**. The expression, the
-    status rule, and the join path stay in the view. The SQL no longer restates them.
-    """)
+    import pandas as pd
 
-    query_choice = st.selectbox(
-        "Select a metric to explore:",
-        [
-            "Total Revenue by Region",
-            "Average Order Value by Segment",
-            "Active Customers Over Time",
-            "Revenue by Product Category",
-            "Monthly Revenue Trend",
-        ]
-    )
+    st.header("Same question, two answers")
+    st.markdown("""
+    The left query reads the base tables and invents the metric. The right query
+    asks the semantic view for the metric by name. The chart is the difference.
+    """)
 
     semantic_view = "OSSIE_DEMO.ECOMMERCE.ecommerce_semantic_model"
-    queries = {
-        "Total Revenue by Region": f"""
-            SELECT *
-            FROM SEMANTIC_VIEW(
-                {semantic_view}
-                DIMENSIONS customers.region
-                METRICS orders.total_revenue,
-                        orders.order_count
-            )
-            ORDER BY total_revenue DESC
-        """,
-        "Average Order Value by Segment": f"""
-            SELECT *
-            FROM SEMANTIC_VIEW(
-                {semantic_view}
-                DIMENSIONS customers.customer_segment
-                METRICS orders.average_order_value,
-                        orders.order_count,
-                        orders.active_customers
-            )
-            ORDER BY average_order_value DESC
-        """,
-        "Active Customers Over Time": f"""
-            SELECT *
-            FROM SEMANTIC_VIEW(
-                {semantic_view}
-                DIMENSIONS orders.order_month
-                METRICS orders.active_customers,
-                        orders.total_revenue
-            )
-            ORDER BY order_month
-        """,
-        "Revenue by Product Category": f"""
-            SELECT *
-            FROM SEMANTIC_VIEW(
-                {semantic_view}
-                DIMENSIONS products.product_category
-                METRICS order_items.line_revenue,
-                        order_items.items_sold
-            )
-            ORDER BY line_revenue DESC
-        """,
-        "Monthly Revenue Trend": f"""
-            SELECT *
-            FROM SEMANTIC_VIEW(
-                {semantic_view}
-                DIMENSIONS orders.order_month
-                METRICS orders.total_revenue,
-                        orders.total_discount,
-                        orders.average_order_value
-            )
-            ORDER BY order_month
-        """,
-    }
-    query_notes = {
-        "Total Revenue by Region": "total_revenue and order_count already keep completed orders only. This query names the metrics and the region dimension.",
-        "Average Order Value by Segment": "average_order_value is completed revenue divided by the completed order count. active_customers uses a wider status list, so the two numbers answer different questions.",
-        "Active Customers Over Time": "active_customers includes completed, shipped, and processing orders. total_revenue on the same chart stays limited to completed orders.",
-        "Revenue by Product Category": "Category lives on products, so this cut uses line_revenue and items_sold. The Ossie model gives those metrics no status filter. Order-level revenue is a different metric, with its own rule.",
-        "Monthly Revenue Trend": "total_revenue, total_discount, and average_order_value all inherit the completed-order rule from their expressions.",
+    scenarios = {
+        "Total Revenue by Region": {
+            "dimension": "REGION",
+            "metric": "TOTAL_REVENUE",
+            "chart": "bar",
+            "sort": "without",
+            "show_total": True,
+            "metric_name": "TOTAL_REVENUE",
+            "without_note": "The column is named total_amount, so this query sums every order. Shipped and processing orders are included.",
+            "with_note": "The query names total_revenue. The expression under it is what the view applies.",
+            "without_sql": """
+                SELECT c.region AS region,
+                       SUM(o.total_amount) AS total_revenue
+                FROM OSSIE_DEMO.ECOMMERCE.orders o
+                JOIN OSSIE_DEMO.ECOMMERCE.customers c
+                  ON o.customer_id = c.customer_id
+                GROUP BY c.region
+                ORDER BY total_revenue DESC
+            """,
+            "with_sql": f"""
+                SELECT *
+                FROM SEMANTIC_VIEW(
+                    {semantic_view}
+                    DIMENSIONS customers.region
+                    METRICS orders.total_revenue
+                )
+                ORDER BY total_revenue DESC
+            """,
+        },
+        "Average Order Value by Segment": {
+            "dimension": "CUSTOMER_SEGMENT",
+            "metric": "AVERAGE_ORDER_VALUE",
+            "chart": "bar",
+            "sort": "without",
+            "show_total": False,
+            "metric_name": "AVERAGE_ORDER_VALUE",
+            "without_note": "Average order value is recalculated from every order in the segment, including orders that are not completed.",
+            "with_note": "The query names average_order_value. That metric is built from completed revenue and the completed order count.",
+            "without_sql": """
+                SELECT c.customer_segment AS customer_segment,
+                       SUM(o.total_amount)
+                         / NULLIF(COUNT(DISTINCT o.order_id), 0) AS average_order_value
+                FROM OSSIE_DEMO.ECOMMERCE.orders o
+                JOIN OSSIE_DEMO.ECOMMERCE.customers c
+                  ON o.customer_id = c.customer_id
+                GROUP BY c.customer_segment
+                ORDER BY average_order_value DESC
+            """,
+            "with_sql": f"""
+                SELECT *
+                FROM SEMANTIC_VIEW(
+                    {semantic_view}
+                    DIMENSIONS customers.customer_segment
+                    METRICS orders.average_order_value
+                )
+                ORDER BY average_order_value DESC
+            """,
+        },
+        "Active Customers Over Time": {
+            "dimension": "ORDER_MONTH",
+            "metric": "ACTIVE_CUSTOMERS",
+            "chart": "line",
+            "sort": "dimension",
+            "show_total": False,
+            "metric_name": "ACTIVE_CUSTOMERS",
+            "without_note": "The completed-order rule is copied onto active customers. Months that only have shipped or processing orders drop out.",
+            "with_note": "The query names active_customers. Its expression keeps a wider set of statuses than revenue.",
+            "without_sql": """
+                SELECT DATE_TRUNC('month', o.order_date) AS order_month,
+                       COUNT(DISTINCT o.customer_id) AS active_customers
+                FROM OSSIE_DEMO.ECOMMERCE.orders o
+                WHERE o.order_status = 'completed'
+                GROUP BY order_month
+                ORDER BY order_month
+            """,
+            "with_sql": f"""
+                SELECT *
+                FROM SEMANTIC_VIEW(
+                    {semantic_view}
+                    DIMENSIONS orders.order_month
+                    METRICS orders.active_customers
+                )
+                ORDER BY order_month
+            """,
+        },
+        "Revenue by Product Category": {
+            "dimension": "PRODUCT_CATEGORY",
+            "metric": "LINE_REVENUE",
+            "chart": "bar",
+            "sort": "without",
+            "show_total": True,
+            "metric_name": "LINE_REVENUE",
+            "without_note": "This joins line items and then sums orders.total_amount. A multi-line order is counted once for every line.",
+            "with_note": "The query names line_revenue. Its expression sums line totals and does not test order status.",
+            "without_sql": """
+                SELECT p.category AS product_category,
+                       SUM(o.total_amount) AS line_revenue
+                FROM OSSIE_DEMO.ECOMMERCE.order_items oi
+                JOIN OSSIE_DEMO.ECOMMERCE.products p
+                  ON oi.product_id = p.product_id
+                JOIN OSSIE_DEMO.ECOMMERCE.orders o
+                  ON oi.order_id = o.order_id
+                GROUP BY p.category
+                ORDER BY line_revenue DESC
+            """,
+            "with_sql": f"""
+                SELECT *
+                FROM SEMANTIC_VIEW(
+                    {semantic_view}
+                    DIMENSIONS products.product_category
+                    METRICS order_items.line_revenue
+                )
+                ORDER BY line_revenue DESC
+            """,
+        },
+        "Monthly Revenue Trend": {
+            "dimension": "ORDER_MONTH",
+            "metric": "TOTAL_REVENUE",
+            "chart": "line",
+            "sort": "dimension",
+            "show_total": True,
+            "metric_name": "TOTAL_REVENUE",
+            "without_note": "Revenue is the sum of total_amount for every row. February and March include orders that are not completed.",
+            "with_note": "The query names total_revenue. The expression under it keeps completed orders only.",
+            "without_sql": """
+                SELECT DATE_TRUNC('month', o.order_date) AS order_month,
+                       SUM(o.total_amount) AS total_revenue
+                FROM OSSIE_DEMO.ECOMMERCE.orders o
+                GROUP BY order_month
+                ORDER BY order_month
+            """,
+            "with_sql": f"""
+                SELECT *
+                FROM SEMANTIC_VIEW(
+                    {semantic_view}
+                    DIMENSIONS orders.order_month
+                    METRICS orders.total_revenue
+                )
+                ORDER BY order_month
+            """,
+        },
     }
 
-    with st.expander("View SQL (asks the semantic view for the metric)", expanded=False):
-        st.code(queries[query_choice].strip(), language="sql")
-        st.caption(query_notes[query_choice])
+    order_previews = {
+        "TOTAL_REVENUE": """
+            SELECT order_id,
+                   order_date,
+                   order_status,
+                   total_amount,
+                   IFF(order_status = 'completed', total_amount, NULL) AS counted_amount
+            FROM OSSIE_DEMO.ECOMMERCE.orders
+            ORDER BY order_date, order_id
+        """,
+        "AVERAGE_ORDER_VALUE": """
+            SELECT order_id,
+                   order_date,
+                   order_status,
+                   total_amount,
+                   IFF(order_status = 'completed', order_id, NULL) AS counted_order
+            FROM OSSIE_DEMO.ECOMMERCE.orders
+            ORDER BY order_date, order_id
+        """,
+        "ACTIVE_CUSTOMERS": """
+            SELECT order_id,
+                   order_date,
+                   order_status,
+                   customer_id,
+                   IFF(
+                       order_status IN ('completed', 'shipped', 'processing'),
+                       customer_id,
+                       NULL
+                   ) AS counted_customer
+            FROM OSSIE_DEMO.ECOMMERCE.orders
+            ORDER BY order_date, order_id
+        """,
+        "LINE_REVENUE": """
+            SELECT oi.order_item_id,
+                   o.order_id,
+                   o.order_status,
+                   p.category,
+                   oi.line_total AS counted_amount
+            FROM OSSIE_DEMO.ECOMMERCE.order_items oi
+            JOIN OSSIE_DEMO.ECOMMERCE.orders o
+              ON oi.order_id = o.order_id
+            JOIN OSSIE_DEMO.ECOMMERCE.products p
+              ON oi.product_id = p.product_id
+            ORDER BY o.order_date, oi.order_item_id
+        """,
+    }
+
+    query_choice = st.selectbox("Select a question:", list(scenarios))
+    scenario = scenarios[query_choice]
+
+    def run_query(sql):
+        frame = session.sql(sql).to_pandas()
+        frame.columns = [column.upper() for column in frame.columns]
+        return frame
+
+    def metric_expressions(metric_name):
+        definition = run_query("""
+            SELECT name, expression
+            FROM OSSIE_DEMO.INFORMATION_SCHEMA.SEMANTIC_METRICS
+            WHERE semantic_view_name = 'ECOMMERCE_SEMANTIC_MODEL'
+        """)
+        if definition.empty:
+            return None, []
+        by_name = {
+            row["NAME"]: row["EXPRESSION"]
+            for _, row in definition.iterrows()
+        }
+        expression = by_name.get(metric_name)
+        if expression is None:
+            return None, []
+        expression_text = expression.lower()
+        related = [
+            (name, related_expression)
+            for name, related_expression in by_name.items()
+            if name != metric_name and name.lower() in expression_text
+        ]
+        return expression, related
+
+    def selection_caption(expression):
+        text = expression.lower()
+        if "order_status" not in text:
+            return "This expression does not test order status, so every row at this grain is included."
+        if "shipped" in text or "processing" in text:
+            return "This expression selects completed, shipped, and processing orders."
+        if "completed" in text:
+            return "This expression selects completed orders. Any other status becomes NULL and drops out of the aggregate."
+        return "This is the expression the semantic view applies."
+
+    without_col, with_col = st.columns(2)
+    with without_col:
+        st.subheader("Without a semantic view")
+        st.caption(scenario["without_note"])
+        st.code(scenario["without_sql"].strip(), language="sql")
+    with with_col:
+        st.subheader("With the semantic view")
+        st.caption(scenario["with_note"])
+        st.markdown("**Generated query**")
+        st.code(scenario["with_sql"].strip(), language="sql")
+        try:
+            expression, related_expressions = metric_expressions(scenario["metric_name"])
+        except Exception as error:
+            expression, related_expressions = None, []
+            st.caption(f"The metric expression could not be read from the semantic view. {error}")
+        if expression:
+            st.markdown("**Expression the view applies**")
+            st.code(expression.strip(), language="sql")
+            if related_expressions:
+                st.caption("This metric uses the expressions below, and those expressions select the rows.")
+                for related_name, related_expression in related_expressions:
+                    st.markdown(f"**{related_name.lower()}**")
+                    st.code(related_expression.strip(), language="sql")
+                    st.caption(selection_caption(related_expression))
+            else:
+                st.caption(selection_caption(expression))
+
+    preview_sql = order_previews.get(scenario["metric_name"])
+    if preview_sql:
+        st.markdown("**Rows this metric selects**")
+        try:
+            selected_rows = run_query(preview_sql)
+            counted_column = next(
+                column for column in selected_rows.columns if column.startswith("COUNTED")
+            )
+            counted = int(selected_rows[counted_column].notna().sum())
+            left_out = int(selected_rows[counted_column].isna().sum())
+            st.caption(f"{counted} rows are selected. {left_out} rows are left out.")
+            st.dataframe(selected_rows, use_container_width=True)
+        except Exception as error:
+            st.caption(f"The selected rows could not be listed. {error}")
 
     try:
-        df = session.sql(queries[query_choice]).to_pandas()
-        df.columns = [column.upper() for column in df.columns]
-
-        if query_choice == "Total Revenue by Region":
-            col_chart, col_table = st.columns([2, 1])
-            with col_chart:
-                st.bar_chart(df, x="REGION", y="TOTAL_REVENUE")
-            with col_table:
-                st.dataframe(df)
-
-        elif query_choice == "Average Order Value by Segment":
-            col_chart, col_table = st.columns([2, 1])
-            with col_chart:
-                st.bar_chart(df, x="CUSTOMER_SEGMENT", y="AVERAGE_ORDER_VALUE")
-            with col_table:
-                st.dataframe(df)
-
-        elif query_choice == "Active Customers Over Time":
-            st.line_chart(df, x="ORDER_MONTH", y=["ACTIVE_CUSTOMERS"])
-            st.dataframe(df)
-
-        elif query_choice == "Revenue by Product Category":
-            col_chart, col_table = st.columns([2, 1])
-            with col_chart:
-                st.bar_chart(df, x="PRODUCT_CATEGORY", y="LINE_REVENUE")
-            with col_table:
-                st.dataframe(df)
-
-        elif query_choice == "Monthly Revenue Trend":
-            st.line_chart(df, x="ORDER_MONTH", y=["TOTAL_REVENUE", "TOTAL_DISCOUNT"])
-            st.dataframe(df)
-
-    except Exception as e:
+        without_df = run_query(scenario["without_sql"])
+        with_df = run_query(scenario["with_sql"])
+    except Exception as error:
         st.warning(
-            "Run `01_setup.sql` and `02_semantic_view.sql` first so the semantic view exists. "
-            f"Error: {e}"
+            "Run `01_setup.sql` and `02_semantic_view.sql` first so both queries can run. "
+            f"Error: {error}"
         )
+    else:
+        dimension = scenario["dimension"]
+        metric = scenario["metric"]
+        missing = [
+            name
+            for name, frame in (("without", without_df), ("with", with_df))
+            if dimension not in frame.columns or metric not in frame.columns
+        ]
+        if missing:
+            st.warning(
+                f"Expected columns {dimension} and {metric}. "
+                f"Without columns: {list(without_df.columns)}. "
+                f"With columns: {list(with_df.columns)}."
+            )
+        else:
+            without_values = without_df[[dimension, metric]].copy()
+            with_values = with_df[[dimension, metric]].copy()
+            without_values[metric] = without_values[metric].astype(float)
+            with_values[metric] = with_values[metric].astype(float)
 
-    st.divider()
-    st.subheader("Why This Matters")
-    st.markdown("""
-    The query names the metric. The semantic view supplies the meaning:
+            compared = without_values.merge(
+                with_values,
+                on=dimension,
+                how="outer",
+                suffixes=("_WITHOUT", "_WITH"),
+            )
+            compared["WITHOUT"] = compared[f"{metric}_WITHOUT"]
+            compared["WITH"] = compared[f"{metric}_WITH"]
+            if scenario["sort"] == "dimension":
+                compared = compared.sort_values(dimension)
+            else:
+                compared = compared.sort_values("WITHOUT", ascending=False, na_position="last")
 
-    - `total_revenue` sums `total_amount` where `order_status = 'completed'`
-    - `gross_revenue` adds `discount_amount` back, on the same completed orders
-    - `average_order_value` is `total_revenue / order_count`, so it keeps that completed-order rule
-    - `active_customers` counts customers with a completed, shipped, or processing order
-    - `line_revenue` and `items_sold` stay on line items, with no status filter, because that is how the model defines them
+            if scenario["show_total"]:
+                without_total = float(compared["WITHOUT"].fillna(0).sum())
+                with_total = float(compared["WITH"].fillna(0).sum())
+                total_col, semantic_col, gap_col = st.columns(3)
+                total_col.metric("Without a semantic view", f"{without_total:,.0f}")
+                semantic_col.metric("With the semantic view", f"{with_total:,.0f}")
+                gap_col.metric("Difference", f"{without_total - with_total:,.0f}")
 
-    A dashboard, a SQL worksheet, and an AI agent that ask for these names get the same contract.
-    """)
+            plot = compared[[dimension, "WITHOUT", "WITH"]].copy()
+            plot["Without semantic view"] = plot["WITHOUT"].fillna(0)
+            plot["With semantic view"] = plot["WITH"].fillna(0)
+            chart_columns = ["Without semantic view", "With semantic view"]
+            if scenario["chart"] == "line":
+                st.line_chart(plot, x=dimension, y=chart_columns)
+            else:
+                st.bar_chart(plot, x=dimension, y=chart_columns)
+
+            display = pd.DataFrame({
+                dimension.replace("_", " ").title(): compared[dimension],
+                "Without semantic view": compared["WITHOUT"],
+                "With semantic view": compared["WITH"],
+                "Difference": compared["WITHOUT"].fillna(0) - compared["WITH"].fillna(0),
+            })
+            st.dataframe(display, use_container_width=True)
 
 # =============================================================================
 # TAB 5: THE INTEROPERABILITY VISION

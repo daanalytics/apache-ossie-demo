@@ -40,7 +40,7 @@ The Streamlit app has 5 tabs:
 1. **What is Ossie?** — The problem of metric inconsistency and how Ossie solves it
 2. **Ossie YAML Spec** — Annotated walkthrough of the YAML format (sources, relationships, dimensions, metrics)
 3. **Ossie → Snowflake Mapping** — Side-by-side comparison showing the 1:1 concept mapping
-4. **Live Query Demo** — Queries that ask the semantic view for a metric by name
+4. **With vs Without** — The same question against the base tables and against the semantic view
 5. **The Vision** — Interoperability diagram, ASF governance, roadmap, and community links
 
 ---
