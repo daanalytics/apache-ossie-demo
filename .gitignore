@@ -1,3 +1,8 @@
 # Private content notes (LinkedIn / blog drafts)
 CONTENT_NOTES.md
 BLOG_DRAFT.md
+
+# Local recorder: browser login and video output
+.venv/
+recording/.browser-profile/
+recording/output/

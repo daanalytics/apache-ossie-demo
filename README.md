@@ -32,6 +32,7 @@ Then execute the CREATE STREAMLIT statement in `03_deploy_streamlit.sql`.
 | `03_deploy_streamlit.sql` | Deploy as Streamlit in Snowflake |
 | `ossie_semantic_model.yaml` | Example Ossie-format semantic model |
 | `streamlit_app.py` | Interactive demo application |
+| `recording/record_demo.py` | Browser walkthrough that saves a video of all five tabs |
 
 ## What the App Demonstrates
 
@@ -44,6 +45,19 @@ The Streamlit app has 5 tabs:
 5. **The Vision** — Interoperability diagram, ASF governance, roadmap, and community links
 
 ---
+
+## Record a walkthrough
+
+The app runs inside Streamlit in Snowflake, so the recording drives the deployed app in a browser. Copy the app URL from the address bar in Snowsight, or from `SHOW STREAMLITS` in `03_deploy_streamlit.sql`.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r recording/requirements.txt
+.venv/bin/playwright install chromium
+.venv/bin/python recording/record_demo.py --url "https://app.snowflake.com/..."
+```
+
+Sign in when the window opens, wait until the app is visible, then press Enter in the terminal. The script visits every tab, every YAML section, and every comparison question. The `.webm` file is written to `recording/output/`. The next run reuses the saved login in `recording/.browser-profile/`.
 
 ## Resources
 
