@@ -17,6 +17,9 @@ USE ROLE ACCOUNTADMIN;
 -- Run after 03_deploy_streamlit.sql has been executed
 GRANT USAGE ON STREAMLIT OSSIE_DEMO.ECOMMERCE.OSSIE_DEMO_APP TO ROLE OSSIE_DEMO_ROLE;
 
+-- Run after `snow app deploy` from app-runtime/ (see 06_deploy_app_runtime.sql)
+-- GRANT USAGE ON APPLICATION SERVICE OSSIE_DEMO.ECOMMERCE.OSSIE_DEMO_SAR TO ROLE OSSIE_DEMO_ROLE;
+
 -- =========================================================================
 -- 2. CORTEX AGENT GRANTS
 -- =========================================================================

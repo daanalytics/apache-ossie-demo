@@ -1,0 +1,29 @@
+version: 2
+
+name: OSSIE_DEMO_SAR
+database: OSSIE_DEMO
+schema: ECOMMERCE
+query_warehouse: COMPUTE_WH
+
+label: Apache Ossie + Snowflake
+description: How Apache Ossie metric context maps to a Snowflake semantic view.
+icon: public/icon.svg
+auto_suspend_secs: 900
+
+ignore:
+  - node_modules
+  - .next
+  - .env*
+  - .git
+
+install:
+  commands:
+    - [npm, ci]
+build:
+  commands:
+    - [npm, run, build]
+    - [mkdir, -p, .next/standalone/.next]
+    - [cp, -r, .next/static, .next/standalone/.next/static]
+    - [cp, -r, public, .next/standalone/public]
+run:
+  command: [node, .next/standalone/server.js]
