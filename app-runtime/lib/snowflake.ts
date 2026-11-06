@@ -106,7 +106,8 @@ function connectionOptions(warehouse?: string): snowflake.ConnectionOptions {
   if (token) {
     options.authenticator = "OAUTH";
     options.token = token;
-    options.username = user || "snowflake-app-runtime";
+    // No username with the session token: Snowflake takes the identity from the
+    // token, and any username that differs from it is rejected.
   } else if (user && password) {
     options.username = user;
     options.password = password;
