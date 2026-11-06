@@ -1,3 +1,17 @@
 # Private content notes (LinkedIn / blog drafts)
 CONTENT_NOTES.md
 BLOG_DRAFT.md
+
+.DS_Store
+__pycache__/
+*.pyc
+
+# Local recorder: browser login and video output
+.venv/
+recording/.browser-profile/
+recording/output/
+
+# Snowflake App Runtime build output
+app-runtime/node_modules/
+app-runtime/.next/
+app-runtime/.env*
